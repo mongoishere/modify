@@ -13,16 +13,31 @@ class Sorter(object):
         self.target_playlists = self.target_playlists.split(',')
         self.target_playlists = [x.strip() for x in self.target_playlists]
 
-    def findtargetPlaylists(self, playlist_json):
+    def findtargetPlaylists(self, playlist_json, length_check=False):
 
         found_playlists = {}
 
         if(isinstance(playlist_json, (str, bytes))): playlist_json = json.loads(playlist_json)
 
-        for item in playlist_json['items']:
-            if item['name'] in self.target_playlists: found_playlists[item['name']] = item['id']
-        
+        playlist_names = self.findPlaylists(playlist_json)
+
+        for i, playlist in enumerate(playlist_names):
+            if playlist in self.target_playlists: found_playlists[playlist] = playlist_json['items'][i]['id']
+
+        if(length_check):
+            if len(playlist_json['items']) == 20: extension_state=True
+            else: extension_state=False
+            return(found_playlists, extension_state)
+
         return(found_playlists)
+
+    def findPlaylists(self, playlist_json):
+        
+        found_playlists = []
+        if(isinstance(playlist_json, (str, bytes))): playlist_json = json.loads(playlist_json)
+        for item in playlist_json['items']: found_playlists.append(f"{item['name']}")
+        return(found_playlists)
+            
 
     def findSongs(self, recent_json):
 

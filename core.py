@@ -7,8 +7,7 @@ from datetime import datetime
 
 class Modify(object):
 
-    def __init__(self):
-        
+    def __init__(self):  
         
         self.modify_caller = Caller() # For making calls to the Spotify API
         self.modify_database = Modify_Database() # For interfacing with the Modify SQL Database
@@ -42,11 +41,23 @@ class Modify(object):
     def modify_playlist(self):
 
         # If no new_songs have been added then exit function
+
+        playlist_ext = False
+        playlist_offset = 0
         
         if not(self.retrieve_recent_songs()): self.modify_logger.debug("Songs lists match, exiting..."); return None
 
         user_playlists = self.modify_caller.makeCall("https://api.spotify.com/v1/me/playlists", self.access_token)
-        target_playlists = self.modify_sorter.findtargetPlaylists(user_playlists)
+        
+        target_playlists, playlist_ext = self.modify_sorter.findtargetPlaylists(user_playlists, True)
+
+        while not(self.modify_sorter.target_playlists == [*target_playlists]) and (playlist_ext):
+            playlist_offset += 1
+            print('Extending playlist search')
+            #import pdb; pdb.set_trace(header='Retrying')
+            user_playlists = self.modify_caller.makeCall(f'https://api.spotify.com/v1/me/playlists?offset={playlist_offset*20}', self.access_token)
+            targets_found, playlist_ext = self.modify_sorter.findtargetPlaylists(user_playlists, True)
+            target_playlists.update(targets_found)
 
         all_records = self.modify_database.list_all_records()
         
@@ -59,7 +70,7 @@ class Modify(object):
 
         self.modify_logger.debug('Adding Song Playback Data')
         for song in record_songs:
-            print(f"Adding {song}...")
+            self.modify_logger.debug(f"Adding {song}...")
             #import pdb; pdb.set_trace()
             self.modify_database.add_song_data(
                 " ".join(song[0].split(":")[:-1]),
@@ -99,14 +110,13 @@ class Modify(object):
                 
                 if (track_target in playlist_tracks[playlist_name]):
                     
-                    print("WORKING")
                     songTarget_index = playlist_tracks[playlist_name].index(f"{song[2]}:{song[1]}")
                     reorder_data = {
                         'range_start': songTarget_index,
                         'insert_before': playlist_edits[playlist_name]
                     }
                     playlist_edits[playlist_name]+=1
-                    print(f"{playlist_edits[playlist_name]} change(s) to {playlist_name} for {song}")
+                    self.modify_logger.debug(f"{playlist_edits[playlist_name]} change(s) to {playlist_name} for {song}")
                     
                     call_response = self.modify_caller.makeCall(
                         f"https://api.spotify.com/v1/playlists/{playlist_id}/tracks",
